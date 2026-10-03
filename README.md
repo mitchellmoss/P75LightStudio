@@ -7,8 +7,9 @@ A small local C++ desktop UI for PMO P75 lighting and its 7 × 7 matrix screen. 
 - Keyboard keys, front strip, and side lighting: enabled state, numeric effect mode, brightness, speed, and color.
 - Matrix screen: enabled state, numeric display mode, brightness, speed, and color.
 - A hand-painted 7 × 7 RGB image stored in the keyboard's custom matrix slot.
+- JPG, JPEG, and PNG import with a 7 × 7 preview. Choose a centered square crop or fit the whole image with black bars; pixels are area-averaged in linear RGB, with transparent areas composited to black.
 
-Mode names are shown as the keyboard's numeric values because PMO's effect list is firmware-dependent. The app reads the current mode first and preserves hidden color/mix fields when applying edits. PMO Hub identifies matrix mode `5` as custom image mode. The current screen editor sends still images; it does not upload GIFs or animations.
+Mode names are shown as the keyboard's numeric values because PMO's effect list is firmware-dependent. The app reads the current mode first and preserves hidden color/mix fields when applying edits. PMO Hub identifies matrix mode `5` as custom image mode. The image importer accepts files up to 32 megapixels. The screen editor sends still images; it does not upload GIFs or animations.
 
 ## Connect
 
@@ -57,7 +58,9 @@ The implementation follows PMO Hub's public browser driver: P75 USB vendor/produ
 
 This implementation was derived from the client code served by [PMO Hub](https://pmohub.cn/), with P75 identity also listed in PMO's [official download center](https://pmolab.cn/col.jsp?id=113). The general HID report model is described in [Chrome's WebHID documentation](https://developer.chrome.com/docs/capabilities/hid/).
 
+JPEG and PNG decoding uses the vendored [`stb_image`](https://github.com/nothings/stb/blob/master/stb_image.h) v2.30 header, available under its [MIT or public-domain license](https://github.com/nothings/stb/blob/master/LICENSE).
+
 ## First-run validation
 
-The checked-in protocol self-test covers report framing, response parsing, P75 mode fields, and 7 × 7 RGB packing. The UI smoke run verifies the SDL event/render loop. A physical P75 is required to confirm writes on the exact keyboard firmware; the device's read-back values are used to preserve its other settings when changing one area.
+The self-test covers report framing, response parsing, P75 mode fields, 7 × 7 RGB packing, and image crop/fit conversion. The UI smoke run verifies the SDL event/render loop. A physical P75 is required to confirm writes on the exact keyboard firmware; the device's read-back values are used to preserve its other settings when changing one area.
 

@@ -156,29 +156,17 @@ bool convertRgbaToMatrix(const std::uint8_t* rgba, int width, int height,
     return true;
 }
 
-bool loadImageToMatrix(const std::string& utf8Path, FitMode fitMode,
-                       protocol::MatrixPixels& pixels, std::string& error) {
-    if (!hasSupportedExtension(utf8Path)) {
-        error = "Choose a JPG, JPEG, or PNG image.";
-        return false;
-    }
-
-    std::size_t fileSize = 0;
-    void* fileData = SDL_LoadFile(utf8Path.c_str(), &fileSize);
-    if (fileData == nullptr) {
-        error = std::string("Couldn't read that image: ") + SDL_GetError();
-        return false;
-    }
-    const auto freeFileData = [](void* data) { SDL_free(data); };
-    std::unique_ptr<void, decltype(freeFileData)> file(fileData, freeFileData);
-
-    if (fileSize == 0 || fileSize > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+bool decodeImageDataToMatrix(const std::uint8_t* encodedData, std::size_t encodedSize,
+                             FitMode fitMode, protocol::MatrixPixels& pixels,
+                             std::string& error) {
+    if (encodedData == nullptr || encodedSize == 0 ||
+        encodedSize > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
         error = "The selected image file is empty or too large to decode.";
         return false;
     }
 
-    const auto* bytes = static_cast<const stbi_uc*>(fileData);
-    const int byteCount = static_cast<int>(fileSize);
+    const auto* bytes = reinterpret_cast<const stbi_uc*>(encodedData);
+    const int byteCount = static_cast<int>(encodedSize);
     int width = 0;
     int height = 0;
     int sourceChannels = 0;
@@ -213,5 +201,23 @@ bool loadImageToMatrix(const std::string& utf8Path, FitMode fitMode,
                                fitMode, pixels, error);
 }
 
-} // namespace p75::image
+bool loadImageToMatrix(const std::string& utf8Path, FitMode fitMode,
+                       protocol::MatrixPixels& pixels, std::string& error) {
+    if (!hasSupportedExtension(utf8Path)) {
+        error = "Choose a JPG, JPEG, or PNG image.";
+        return false;
+    }
 
+    std::size_t fileSize = 0;
+    void* fileData = SDL_LoadFile(utf8Path.c_str(), &fileSize);
+    if (fileData == nullptr) {
+        error = std::string("Couldn't read that image: ") + SDL_GetError();
+        return false;
+    }
+    const auto freeFileData = [](void* data) { SDL_free(data); };
+    std::unique_ptr<void, decltype(freeFileData)> file(fileData, freeFileData);
+    return decodeImageDataToMatrix(static_cast<const std::uint8_t*>(fileData),
+                                   fileSize, fitMode, pixels, error);
+}
+
+} // namespace p75::image

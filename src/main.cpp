@@ -1,6 +1,8 @@
 #include "p75_controller.h"
+#include "image_import.h"
 
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_dialog.h>
 #include <imgui.h>
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_sdlrenderer3.h>
@@ -11,6 +13,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -23,6 +27,31 @@ using p75::protocol::LightAreaSettings;
 using p75::protocol::MatrixPixels;
 using p75::protocol::MatrixSettings;
 using p75::protocol::Rgb;
+
+struct ImageDialogResult {
+    std::mutex mutex;
+    bool ready = false;
+    std::string path;
+    std::string error;
+};
+
+constexpr SDL_DialogFileFilter kImageFileFilters[] = {
+    {"JPG and PNG images", "jpg;jpeg;png"}
+};
+
+void SDLCALL imageFileDialogCallback(void* userdata, const char* const* filelist, int) {
+    std::unique_ptr<std::shared_ptr<ImageDialogResult>> holder(
+        static_cast<std::shared_ptr<ImageDialogResult>*>(userdata));
+    const auto result = *holder;
+    std::lock_guard<std::mutex> lock(result->mutex);
+    if (filelist == nullptr) {
+        const char* message = SDL_GetError();
+        result->error = message != nullptr ? message : "The file dialog failed.";
+    } else if (filelist[0] != nullptr) {
+        result->path = filelist[0];
+    }
+    result->ready = true;
+}
 
 struct AppState {
     P75Controller controller;
@@ -37,8 +66,58 @@ struct AppState {
     LightAreaSettings areaEditor;
     MatrixSettings matrixEditor;
     Rgb brush{255, 112, 196};
+    int imageFitMode = 0;
+    std::string imageSourceName;
+    std::shared_ptr<ImageDialogResult> imageDialogResult;
     bool smoke = false;
     std::chrono::steady_clock::time_point smokeStart;
+
+    void openImageDialog(SDL_Window* window) {
+        if (imageDialogResult) return;
+        auto result = std::make_shared<ImageDialogResult>();
+        imageDialogResult = result;
+        auto* callbackData = new std::shared_ptr<ImageDialogResult>(result);
+        SDL_ShowOpenFileDialog(imageFileDialogCallback, callbackData, window,
+                               kImageFileFilters, 1, nullptr, false);
+        status = "Choose a JPG or PNG image.";
+    }
+
+    void consumeImageDialogResult() {
+        const auto result = imageDialogResult;
+        if (!result) return;
+
+        std::string path;
+        std::string error;
+        {
+            std::lock_guard<std::mutex> lock(result->mutex);
+            if (!result->ready) return;
+            path = result->path;
+            error = result->error;
+        }
+        imageDialogResult.reset();
+
+        if (!error.empty()) {
+            status = "Image picker failed: " + error;
+            return;
+        }
+        if (path.empty()) return;
+
+        const auto fit = imageFitMode == 0
+            ? p75::image::FitMode::CropToFill
+            : p75::image::FitMode::FitWithBlackBars;
+        MatrixPixels converted{};
+        if (!p75::image::loadImageToMatrix(path, fit, converted, error)) {
+            status = error;
+            return;
+        }
+
+        snapshot.pixels = converted;
+        matrixEditor.enabled = true;
+        matrixEditor.mode = 5;
+        const auto separator = path.find_last_of("/\\");
+        imageSourceName = separator == std::string::npos ? path : path.substr(separator + 1);
+        status = "Loaded " + imageSourceName + ". Review the 7×7 preview, connect, then upload the custom image.";
+    }
 
     void refresh() {
         std::string error;
@@ -274,8 +353,9 @@ void paintPixel(AppState& app, int index) {
     app.snapshot.pixels[static_cast<std::size_t>(index)] = app.brush;
 }
 
-void drawMatrixTab(AppState& app) {
-    ImGui::TextWrapped("Edit the P75's 7 × 7 matrix. Click or drag across a cell to paint with the selected brush color.");
+void drawMatrixTab(AppState& app, SDL_Window* window) {
+    ImGui::BeginChild("matrix-editor-scroll", ImVec2(0, 0), false);
+    ImGui::TextWrapped("Edit the P75's 7 × 7 matrix, or import a JPG/PNG and preview its conversion before uploading.");
     ImGui::Spacing();
     ImGui::Checkbox("Display enabled", &app.matrixEditor.enabled);
     ImGui::InputInt("Display mode", &app.matrixEditor.mode);
@@ -295,6 +375,20 @@ void drawMatrixTab(AppState& app) {
     if (ImGui::Button("Fill grid")) app.snapshot.pixels.fill(app.brush);
     ImGui::SameLine();
     if (ImGui::Button("Clear grid")) app.snapshot.pixels.fill(Rgb{0, 0, 0});
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("IMAGE IMPORT");
+    ImGui::BeginDisabled(app.imageDialogResult != nullptr);
+    if (ImGui::Button("Load JPG / PNG", ImVec2(170, 38))) app.openImageDialog(window);
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    const char* fitOptions[] = {"Crop to fill", "Fit with black bars"};
+    ImGui::SetNextItemWidth(210.0f);
+    ImGui::Combo("Image fit", &app.imageFitMode, fitOptions, 2);
+    ImGui::TextDisabled("Fit applies when imported. Uses area averaging in linear RGB; transparent pixels become black.");
+    if (!app.imageSourceName.empty()) {
+        ImGui::TextWrapped("Preview: %s", app.imageSourceName.c_str());
+    }
 
     ImGui::Spacing();
     const float cellSize = std::clamp(ImGui::GetContentRegionAvail().x / 9.5f, 28.0f, 52.0f);
@@ -324,9 +418,10 @@ void drawMatrixTab(AppState& app) {
     ImGui::SameLine();
     if (ImGui::Button("Upload custom image", ImVec2(205, 40))) app.applyMatrix(true);
     ImGui::EndDisabled();
+    ImGui::EndChild();
 }
 
-void drawWindow(AppState& app) {
+void drawWindow(AppState& app, SDL_Window* window) {
     const auto viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
@@ -356,7 +451,7 @@ void drawWindow(AppState& app) {
         }
         if (ImGui::BeginTabItem("Matrix screen")) {
             ImGui::Spacing();
-            drawMatrixTab(app);
+            drawMatrixTab(app, window);
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
@@ -400,6 +495,28 @@ bool runSelfTest() {
         std::fprintf(stderr, "self-test failed: 7x7 RGB encoding\n");
         return false;
     }
+    const std::array<std::uint8_t, 8> twoColorImage{
+        255, 0, 0, 255, 0, 0, 255, 255
+    };
+    MatrixPixels croppedImage{};
+    if (!p75::image::convertRgbaToMatrix(twoColorImage.data(), 2, 1,
+            p75::image::FitMode::CropToFill, croppedImage, error) ||
+        croppedImage[21].r != 255 || croppedImage[21].b != 0 ||
+        croppedImage[27].r != 0 || croppedImage[27].b != 255 ||
+        std::abs(static_cast<int>(croppedImage[24].r) - 188) > 1 ||
+        croppedImage[24].g != 0 ||
+        std::abs(static_cast<int>(croppedImage[24].b) - 188) > 1) {
+        std::fprintf(stderr, "self-test failed: center-crop image conversion (%s)\n", error.c_str());
+        return false;
+    }
+    MatrixPixels fittedImage{};
+    if (!p75::image::convertRgbaToMatrix(twoColorImage.data(), 2, 1,
+            p75::image::FitMode::FitWithBlackBars, fittedImage, error) ||
+        fittedImage[0].r != 0 || fittedImage[6].r != 0 || fittedImage[42].r != 0 ||
+        fittedImage[48].r != 0 || fittedImage[24].r == 0) {
+        std::fprintf(stderr, "self-test failed: contain image conversion (%s)\n", error.c_str());
+        return false;
+    }
     FunctionInfo info{};
     MatrixSettings settings;
     info[33] = 9;
@@ -421,7 +538,7 @@ bool runSelfTest() {
         std::fprintf(stderr, "self-test failed: lighting settings mapping\n");
         return false;
     }
-    std::puts("Protocol self-test passed.");
+    std::puts("Protocol and image-import self-test passed.");
     return true;
 }
 
@@ -559,11 +676,12 @@ int main(int argc, char** argv) {
                 running = false;
             }
         }
+        app.consumeImageDialogResult();
 
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
-        drawWindow(app);
+        drawWindow(app, window);
         ImGui::Render();
 
         SDL_SetRenderDrawColor(renderer, 14, 16, 21, 255);

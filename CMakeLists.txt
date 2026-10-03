@@ -52,6 +52,7 @@ target_link_libraries(imgui PUBLIC SDL3::SDL3)
 
 add_executable(P75LightStudio
     src/main.cpp
+    src/image_import.cpp
     src/p75_protocol.cpp
     src/p75_controller.cpp
 )

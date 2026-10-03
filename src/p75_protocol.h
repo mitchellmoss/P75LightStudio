@@ -27,6 +27,11 @@ inline constexpr std::uint8_t kSetFuncInfo = 21;
 inline constexpr std::uint8_t kGetMatrixCustom = 58;
 inline constexpr std::uint8_t kSetMatrixCustom = 59;
 inline constexpr std::uint8_t kSetMatrixModePrepare = 61;
+inline constexpr std::array<std::uint8_t, 5> kGetUserLightCommands{34, 36, 38, 40, 42};
+inline constexpr std::array<std::uint8_t, 5> kSetUserLightCommands{35, 37, 39, 41, 43};
+inline constexpr std::size_t kUserLightKeyCount = 128;
+inline constexpr std::size_t kUserLightBytes = kUserLightKeyCount * 3;
+inline constexpr std::uint8_t kCustomKeyLightMode = 253;
 
 struct Rgb {
     std::uint8_t r = 0;
@@ -35,6 +40,7 @@ struct Rgb {
 };
 
 using MatrixPixels = std::array<Rgb, kMatrixPixels>;
+using UserLightColors = std::array<Rgb, kUserLightKeyCount>;
 using FunctionInfo = std::array<std::uint8_t, 64>;
 
 struct LightAreaSettings {
@@ -71,6 +77,8 @@ bool parseResponse(
 
 std::vector<std::uint8_t> encodeMatrix(const MatrixPixels& pixels);
 MatrixPixels decodeMatrix(const std::vector<std::uint8_t>& bytes);
+std::array<std::uint8_t, kUserLightBytes> encodeUserLight(const UserLightColors& colors);
+UserLightColors decodeUserLight(const std::vector<std::uint8_t>& bytes);
 
 void updateLightArea(FunctionInfo& info, const LightAreaSettings& settings,
                      int area, int maxBrightness, int maxSpeed);

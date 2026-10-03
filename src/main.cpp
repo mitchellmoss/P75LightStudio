@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -27,6 +28,58 @@ using p75::protocol::LightAreaSettings;
 using p75::protocol::MatrixPixels;
 using p75::protocol::MatrixSettings;
 using p75::protocol::Rgb;
+
+struct KeyboardKey {
+    float x;
+    float y;
+    float width;
+    std::uint8_t lightIndex;
+    const char* label;
+};
+
+// PMO Hub's P75 layout (layout/rdrp75.json), including its shared LED index
+// for the Up and Left Ctrl keys.
+constexpr KeyboardKey kP75Keys[] = {
+    {0, 0, 1, 0, "Esc"}, {1.25f, 0, 1, 1, "F1"}, {2.25f, 0, 1, 2, "F2"},
+    {3.25f, 0, 1, 3, "F3"}, {4.25f, 0, 1, 4, "F4"}, {5.5f, 0, 1, 5, "F5"},
+    {6.5f, 0, 1, 6, "F6"}, {7.5f, 0, 1, 7, "F7"}, {8.5f, 0, 1, 8, "F8"},
+    {9.75f, 0, 1, 9, "F9"}, {10.75f, 0, 1, 10, "F10"},
+    {11.75f, 0, 1, 11, "F11"}, {12.75f, 0, 1, 12, "F12"},
+    {14, 0, 1, 13, "Del"}, {15, 0, 1, 14, "Home"},
+    {0, 1.25f, 1, 15, "~"}, {1, 1.25f, 1, 16, "1"}, {2, 1.25f, 1, 17, "2"},
+    {3, 1.25f, 1, 18, "3"}, {4, 1.25f, 1, 19, "4"}, {5, 1.25f, 1, 20, "5"},
+    {6, 1.25f, 1, 21, "6"}, {7, 1.25f, 1, 22, "7"}, {8, 1.25f, 1, 23, "8"},
+    {9, 1.25f, 1, 24, "9"}, {10, 1.25f, 1, 25, "0"},
+    {11, 1.25f, 1, 26, "-"}, {12, 1.25f, 1, 27, "="},
+    {13, 1.25f, 2, 28, "Bksp"}, {15, 1.25f, 1, 29, "End"},
+    {0, 2.25f, 1.5f, 30, "Tab"}, {1.5f, 2.25f, 1, 31, "Q"},
+    {2.5f, 2.25f, 1, 32, "W"}, {3.5f, 2.25f, 1, 33, "E"},
+    {4.5f, 2.25f, 1, 34, "R"}, {5.5f, 2.25f, 1, 35, "T"},
+    {6.5f, 2.25f, 1, 36, "Y"}, {7.5f, 2.25f, 1, 37, "U"},
+    {8.5f, 2.25f, 1, 38, "I"}, {9.5f, 2.25f, 1, 39, "O"},
+    {10.5f, 2.25f, 1, 40, "P"}, {11.5f, 2.25f, 1, 41, "["},
+    {12.5f, 2.25f, 1, 42, "]"}, {13.5f, 2.25f, 1.5f, 43, "\\"},
+    {15, 2.25f, 1, 44, "PgUp"},
+    {0, 3.25f, 1.75f, 45, "Caps"}, {1.75f, 3.25f, 1, 46, "A"},
+    {2.75f, 3.25f, 1, 47, "S"}, {3.75f, 3.25f, 1, 48, "D"},
+    {4.75f, 3.25f, 1, 49, "F"}, {5.75f, 3.25f, 1, 50, "G"},
+    {6.75f, 3.25f, 1, 51, "H"}, {7.75f, 3.25f, 1, 52, "J"},
+    {8.75f, 3.25f, 1, 53, "K"}, {9.75f, 3.25f, 1, 54, "L"},
+    {10.75f, 3.25f, 1, 55, ";"}, {11.75f, 3.25f, 1, 56, "'"},
+    {12.75f, 3.25f, 2.25f, 57, "Enter"}, {15, 3.25f, 1, 58, "PgDn"},
+    {0, 4.25f, 2.25f, 59, "L-Shift"}, {2.25f, 4.25f, 1, 60, "Z"},
+    {3.25f, 4.25f, 1, 61, "X"}, {4.25f, 4.25f, 1, 62, "C"},
+    {5.25f, 4.25f, 1, 63, "V"}, {6.25f, 4.25f, 1, 64, "B"},
+    {7.25f, 4.25f, 1, 65, "N"}, {8.25f, 4.25f, 1, 66, "M"},
+    {9.25f, 4.25f, 1, 67, ","}, {10.25f, 4.25f, 1, 68, "."},
+    {11.25f, 4.25f, 1, 69, "/"}, {12.25f, 4.25f, 1.75f, 70, "R-Shift"},
+    {14, 4.25f, 1, 71, "↑"},
+    {0, 5.25f, 1.25f, 71, "Ctrl"}, {1.25f, 5.25f, 1.25f, 72, "Win"},
+    {2.5f, 5.25f, 1.25f, 73, "Alt"}, {3.75f, 5.25f, 6.25f, 74, "Space"},
+    {10, 5.25f, 1.25f, 75, "Fn"}, {11.25f, 5.25f, 1.25f, 76, "Ctrl"},
+    {13, 5.25f, 1, 77, "←"}, {14, 5.25f, 1, 78, "↓"},
+    {15, 5.25f, 1, 79, "→"}
+};
 
 struct ImageDialogResult {
     std::mutex mutex;
@@ -66,6 +119,7 @@ struct AppState {
     LightAreaSettings areaEditor;
     MatrixSettings matrixEditor;
     Rgb brush{255, 112, 196};
+    Rgb keyboardBrush{132, 89, 255};
     int imageFitMode = 0;
     std::string imageSourceName;
     std::shared_ptr<ImageDialogResult> imageDialogResult;
@@ -152,7 +206,9 @@ struct AppState {
         loaded = true;
         matrixEditor = snapshot.matrix;
         editAreaFromSnapshot();
-        status = "Read settings from the P75.";
+        status = snapshot.keyColorsAvailable
+            ? "Read settings and custom key colors from the P75."
+            : "Read settings. The active custom key-color profile could not be read; unpainted keys will be off when applied.";
     }
 
     void connectSelected() {
@@ -192,6 +248,32 @@ struct AppState {
         else if (selectedArea == 2) snapshot.sides = areaEditor;
         else snapshot.keyboard = areaEditor;
         status = "Applied lighting settings to the P75.";
+    }
+
+    void applyKeyboardColors() {
+        if (!loaded) {
+            status = "Read the P75 settings before applying key colors.";
+            return;
+        }
+        if (demo) {
+            snapshot.keyboard.enabled = true;
+            snapshot.keyboard.mode = p75::protocol::kCustomKeyLightMode;
+            snapshot.keyColorsAvailable = true;
+            if (selectedArea == 0) areaEditor = snapshot.keyboard;
+            status = "Preview mode: the painted key colors are active in the local preview.";
+            return;
+        }
+        std::string error;
+        if (!controller.applyKeyboardKeyColors(snapshot.keyColors, snapshot, error)) {
+            status = error;
+            return;
+        }
+        snapshot.keyboard.enabled = true;
+        snapshot.keyboard.mode = p75::protocol::kCustomKeyLightMode;
+        snapshot.keyColorsAvailable = true;
+        if (selectedArea == 0) areaEditor = snapshot.keyboard;
+        status = "Applied the painted key colors to custom profile " +
+                 std::to_string(snapshot.customLightSlot + 1) + ".";
     }
 
     void applyMatrix(bool withImage) {
@@ -421,6 +503,88 @@ void drawMatrixTab(AppState& app, SDL_Window* window) {
     ImGui::EndChild();
 }
 
+void drawKeyboardPaintTab(AppState& app) {
+    ImGui::TextWrapped("Choose a color, then click or drag across the keyboard to paint keys. Colors stay in the editor until you apply them.");
+    ImGui::Spacing();
+
+    float brush[3] = {app.keyboardBrush.r / 255.0f,
+                      app.keyboardBrush.g / 255.0f,
+                      app.keyboardBrush.b / 255.0f};
+    if (ImGui::ColorEdit3("Paint color", brush,
+                          ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoAlpha)) {
+        app.keyboardBrush = fromFloats(brush);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Fill all keys")) {
+        for (const auto& key : kP75Keys) {
+            app.snapshot.keyColors[key.lightIndex] = app.keyboardBrush;
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Clear all keys")) {
+        for (const auto& key : kP75Keys) {
+            app.snapshot.keyColors[key.lightIndex] = Rgb{};
+        }
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("Custom profile %d / 5", app.snapshot.customLightSlot + 1);
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("P75 KEYBOARD");
+    if (!app.snapshot.keyColorsAvailable && !app.demo) {
+        ImGui::TextColored(ImVec4(1.0f, 0.73f, 0.38f, 1.0f),
+            "The current profile could not be read. Unpainted keys will be set to black when applied.");
+    }
+
+    const float availableWidth = ImGui::GetContentRegionAvail().x;
+    const float unit = std::clamp((availableWidth - 28.0f) / 16.2f, 20.0f, 54.0f);
+    const float boardHeight = 6.45f * unit + 12.0f;
+    ImGui::BeginChild("keyboard-paint-canvas", ImVec2(0, boardHeight), true,
+                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    const ImVec2 boardStart = ImGui::GetCursorScreenPos();
+    constexpr float inset = 8.0f;
+    for (std::size_t index = 0; index < std::size(kP75Keys); ++index) {
+        const auto& key = kP75Keys[index];
+        const ImVec2 keyMin(boardStart.x + inset + key.x * unit,
+                            boardStart.y + inset + key.y * unit);
+        const ImVec2 keySize(std::max(14.0f, key.width * unit - 3.0f), unit - 3.0f);
+        ImGui::SetCursorScreenPos(keyMin);
+        ImGui::PushID(static_cast<int>(index));
+        ImGui::InvisibleButton("key", keySize);
+        const bool hovered = ImGui::IsItemHovered();
+        if (hovered && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+            app.snapshot.keyColors[key.lightIndex] = app.keyboardBrush;
+        }
+        const ImVec2 min = ImGui::GetItemRectMin();
+        const ImVec2 max = ImGui::GetItemRectMax();
+        const Rgb color = app.snapshot.keyColors[key.lightIndex];
+        const ImU32 fill = ImGui::ColorConvertFloat4ToU32(toImVec4(color));
+        const ImU32 border = ImGui::GetColorU32(hovered
+            ? ImVec4(0.94f, 0.82f, 1.0f, 1.0f)
+            : ImVec4(0.35f, 0.37f, 0.43f, 1.0f));
+        auto* drawList = ImGui::GetWindowDrawList();
+        drawList->AddRectFilled(min, max, fill, 4.0f);
+        drawList->AddRect(min, max, border, 4.0f, 0, hovered ? 2.0f : 1.0f);
+        const float luminance = 0.2126f * color.r + 0.7152f * color.g + 0.0722f * color.b;
+        const ImU32 textColor = ImGui::GetColorU32(luminance > 145.0f
+            ? ImVec4(0.06f, 0.07f, 0.09f, 1.0f)
+            : ImVec4(0.97f, 0.97f, 1.0f, 1.0f));
+        const ImVec2 labelSize = ImGui::CalcTextSize(key.label);
+        const ImVec2 labelPos(min.x + (max.x - min.x - labelSize.x) * 0.5f,
+                              min.y + (max.y - min.y - labelSize.y) * 0.5f);
+        drawList->AddText(labelPos, textColor, key.label);
+        ImGui::PopID();
+    }
+    ImGui::EndChild();
+
+    ImGui::Spacing();
+    ImGui::BeginDisabled(!app.loaded || (!app.demo && !app.controller.isConnected()));
+    if (ImGui::Button("Apply key colors", ImVec2(190, 40))) app.applyKeyboardColors();
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::TextDisabled("Applying selects the P75 custom static-color mode.");
+}
+
 void drawWindow(AppState& app, SDL_Window* window) {
     const auto viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
@@ -447,6 +611,11 @@ void drawWindow(AppState& app, SDL_Window* window) {
         if (ImGui::BeginTabItem("Keyboard lighting")) {
             ImGui::Spacing();
             drawAreaTab(app);
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Paint keys")) {
+            ImGui::Spacing();
+            drawKeyboardPaintTab(app);
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Matrix screen")) {
@@ -680,6 +849,15 @@ int main(int argc, char** argv) {
         app.snapshot.front = LightAreaSettings{true, 2, 120, 2, Rgb{255, 112, 196}};
         app.snapshot.sides = LightAreaSettings{true, 1, 140, 2, Rgb{65, 208, 240}};
         app.snapshot.matrix = MatrixSettings{};
+        app.snapshot.keyColorsAvailable = true;
+        for (std::size_t i = 0; i < app.snapshot.keyColors.size(); ++i) {
+            const float t = static_cast<float>(i) /
+                            static_cast<float>(app.snapshot.keyColors.size() - 1);
+            app.snapshot.keyColors[i] = Rgb{
+                static_cast<std::uint8_t>(60 + 180 * t),
+                static_cast<std::uint8_t>(80 + 80 * (1.0f - t)),
+                static_cast<std::uint8_t>(210 - 130 * t)};
+        }
         app.areaEditor = app.snapshot.keyboard;
         app.matrixEditor = app.snapshot.matrix;
         for (int x = 0; x < 7; ++x) {

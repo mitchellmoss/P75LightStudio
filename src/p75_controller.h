@@ -40,6 +40,9 @@ struct DeviceSnapshot {
     protocol::LightAreaSettings sides;
     protocol::MatrixSettings matrix;
     protocol::MatrixPixels pixels{};
+    int customLightSlot = 0;
+    protocol::UserLightColors keyColors{};
+    bool keyColorsAvailable = false;
 };
 
 class P75Controller {
@@ -58,6 +61,8 @@ public:
     bool readAll(DeviceSnapshot& snapshot, std::string& error);
     bool applyLightArea(int area, const protocol::LightAreaSettings& settings,
                         const DeviceSnapshot& snapshot, std::string& error);
+    bool applyKeyboardKeyColors(const protocol::UserLightColors& colors,
+                                const DeviceSnapshot& snapshot, std::string& error);
     bool applyMatrixSettings(const protocol::MatrixSettings& settings,
                              const DeviceSnapshot& snapshot, std::string& error);
     bool uploadMatrix(const protocol::MatrixPixels& pixels,

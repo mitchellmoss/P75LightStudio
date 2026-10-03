@@ -235,6 +235,8 @@ bool P75Controller::readAll(DeviceSnapshot& snapshot, std::string& error) {
         out.front = parseLightArea(info, 10, out.frontBrightnessMax, out.frontSpeedMax);
         out.sides = parseLightArea(info, 19, out.sideBrightnessMax, out.sideSpeedMax);
         out.matrix = parseMatrix(info, out.matrixBrightnessMax, out.matrixSpeedMax);
+        out.customLightSlot = std::min<int>(info[10],
+            static_cast<int>(protocol::kGetUserLightCommands.size()) - 1);
 
         if (out.matrixScreenAvailable) {
             std::vector<std::uint8_t> matrixData;
@@ -242,7 +244,54 @@ bool P75Controller::readAll(DeviceSnapshot& snapshot, std::string& error) {
                                   matrixData, actionError)) return false;
             out.pixels = protocol::decodeMatrix(matrixData);
         }
+
+        std::vector<std::uint8_t> userLightData;
+        const auto command = protocol::kGetUserLightCommands[
+            static_cast<std::size_t>(out.customLightSlot)];
+        if (self.readChunked(command, protocol::kUserLightBytes,
+                             userLightData, actionError)) {
+            out.keyColors = protocol::decodeUserLight(userLightData);
+            out.keyColorsAvailable = true;
+        } else {
+            // Keep basic settings usable on firmware that lacks custom-light
+            // profile reads. The paint view will start with an empty palette.
+            out.keyColors.fill(protocol::Rgb{});
+            out.keyColorsAvailable = false;
+            actionError.clear();
+        }
         return true;
+    };
+    return withSession(action, &context, error);
+}
+
+bool P75Controller::applyKeyboardKeyColors(const protocol::UserLightColors& colors,
+                                           const DeviceSnapshot& snapshot,
+                                           std::string& error) {
+    const int slot = std::clamp(snapshot.customLightSlot, 0,
+        static_cast<int>(protocol::kSetUserLightCommands.size()) - 1);
+    const auto encoded = protocol::encodeUserLight(colors);
+    const std::vector<std::uint8_t> bytes(encoded.begin(), encoded.end());
+    struct Context {
+        const std::vector<std::uint8_t>* bytes;
+        int slot;
+    } context{&bytes, slot};
+    auto action = +[](P75Controller& self, void* opaque,
+                      std::string& actionError) -> bool {
+        const auto& args = *static_cast<Context*>(opaque);
+        const auto setCommand = protocol::kSetUserLightCommands[
+            static_cast<std::size_t>(args.slot)];
+        if (!self.writeChunked(setCommand, *args.bytes, actionError)) return false;
+
+        std::vector<std::uint8_t> funcData;
+        if (!self.readChunked(protocol::kGetFuncInfo, 64, funcData, actionError)) {
+            return false;
+        }
+        protocol::FunctionInfo info{};
+        std::copy_n(funcData.begin(), info.size(), info.begin());
+        info[1] = 0; // PMO's lightSwitch value 0 means enabled.
+        info[2] = protocol::kCustomKeyLightMode;
+        info[10] = static_cast<std::uint8_t>(args.slot);
+        return self.writeFunctionInfo(info, actionError);
     };
     return withSession(action, &context, error);
 }

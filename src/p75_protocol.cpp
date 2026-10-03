@@ -81,6 +81,25 @@ MatrixPixels decodeMatrix(const std::vector<std::uint8_t>& bytes) {
     return pixels;
 }
 
+std::array<std::uint8_t, kUserLightBytes> encodeUserLight(const UserLightColors& colors) {
+    std::array<std::uint8_t, kUserLightBytes> bytes{};
+    for (std::size_t index = 0; index < colors.size(); ++index) {
+        bytes[index * 3] = colors[index].r;
+        bytes[index * 3 + 1] = colors[index].g;
+        bytes[index * 3 + 2] = colors[index].b;
+    }
+    return bytes;
+}
+
+UserLightColors decodeUserLight(const std::vector<std::uint8_t>& bytes) {
+    UserLightColors colors{};
+    const auto size = std::min(bytes.size(), kUserLightBytes);
+    for (std::size_t offset = 0; offset + 2 < size; offset += 3) {
+        colors[offset / 3] = Rgb{bytes[offset], bytes[offset + 1], bytes[offset + 2]};
+    }
+    return colors;
+}
+
 void updateLightArea(FunctionInfo& info, const LightAreaSettings& settings,
                      int area, int maxBrightness, int maxSpeed) {
     // PMO Hub's P75 map: keys 1..10, front/decorative strip 11..19,

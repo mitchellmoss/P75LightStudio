@@ -5,6 +5,7 @@ A small local C++ desktop UI for PMO P75 lighting and its 7 × 7 matrix screen. 
 ## What it can change
 
 - Keyboard keys, front strip, and side lighting: enabled state, numeric effect mode, brightness, speed, and color.
+- Per-key RGB colors: click or drag on the P75 key layout with a color brush, fill or clear the profile, then apply it as the active custom lighting mode. The current custom profile is read first when firmware supports it.
 - Matrix screen: enabled state, numeric display mode, brightness, speed, and color.
 - A hand-painted 7 × 7 RGB image stored in the keyboard's custom matrix slot.
 - JPG, JPEG, and PNG import with a 7 × 7 preview. Choose a centered square crop or fit the whole image with black bars; pixels are area-averaged in linear RGB, with transparent areas composited to black.
@@ -16,7 +17,7 @@ Mode names are shown as the keyboard's numeric values because PMO's effect list 
 1. Connect the keyboard with USB and set it to wired mode.
 2. Close PMO Hub and any other program currently controlling the keyboard.
 3. Launch `P75LightStudio.exe`, click **Refresh**, select the **P75 control interface**, then click **Connect**.
-4. Edit a lighting area or paint the matrix, then use its **Apply** button.
+4. Edit a lighting area, paint keys, or paint/import an image for the matrix, then use the matching **Apply** button.
 
 The app only writes settings commands. It does not update firmware, remap keys, or reset the keyboard. If the device reports an unsupported HID interface or firmware, the app leaves controls disconnected rather than sending guessed commands.
 
@@ -56,7 +57,7 @@ On Windows, the executable is `build/bin/Release/P75LightStudio.exe` or `build/b
 
 The implementation follows PMO Hub's public browser driver: P75 USB vendor/product IDs `0x36B0:0x302B`, custom HID usage `0xFF60:0x0061`, 65-byte HIDAPI output packets, `0xAA` command header, 56-byte data chunks, and the PMO success marker `0x55`. Matrix custom data is 49 RGB pixels (147 bytes), and the screen-settings fields use the v2 function-info layout.
 
-This implementation was derived from the client code served by [PMO Hub](https://pmohub.cn/), with P75 identity also listed in PMO's [official download center](https://pmolab.cn/col.jsp?id=113). The general HID report model is described in [Chrome's WebHID documentation](https://developer.chrome.com/docs/capabilities/hid/).
+The P75 per-key editor uses PMO Hub's 81-key layout map and its five 384-byte user-light profiles (128 RGB entries each). It writes the active profile and selects PMO's custom static-color mode while preserving the rest of the lighting settings. This implementation was derived from the client code served by [PMO Hub](https://pmohub.cn/), with P75 identity also listed in PMO's [official download center](https://pmolab.cn/col.jsp?id=113). The general HID report model is described in [Chrome's WebHID documentation](https://developer.chrome.com/docs/capabilities/hid/).
 
 JPEG and PNG decoding uses the vendored [`stb_image`](https://github.com/nothings/stb/blob/master/stb_image.h) v2.30 header, available under its [MIT or public-domain license](https://github.com/nothings/stb/blob/master/LICENSE).
 
